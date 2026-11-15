@@ -17,6 +17,8 @@ jobs:
         with:
           python-version: "3.12"
       - name: Listeyi üret
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # GitHub depo araması için
         run: python3 -I guncelle.py
       - name: Değiştiyse kaydet
         run: |
