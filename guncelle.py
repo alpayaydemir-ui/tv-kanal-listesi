@@ -12,18 +12,23 @@ import sys
 import urllib.request
 
 KAYNAK = "https://iptv-org.github.io/iptv/countries/tr.m3u"
-CIKTI = pathlib.Path(__file__).resolve().parent / "turkiye-ucretsiz.m3u"
+KLASOR = pathlib.Path(__file__).resolve().parent
+CIKTI = KLASOR / "turkiye-ucretsiz.m3u"
+# iptv-org'da olmayan ya da sorunlu kanallar; yalnızca yayıncı sunucuları, Türkiye'den test edildi.
+# Aynı adlı kanal iki listede varsa buradaki adres kullanılır.
+EK = KLASOR / "ek-kanallar.m3u"
 EN_AZ_KANAL = 50  # kaynak bozuk gelirse mevcut liste korunur
 
 UCRETLI = re.compile(
-    r"^(S Sport|Eurosport|BBC (First|Earth)|National Geographic|Viasat|FX \(|Cartoon Network|"
+    r"^(S Sport|beIN|Eurosport|BBC (First|Earth)|National Geographic|Viasat|FX \(|Cartoon Network|"
     r"Disney|BabyTV|MovieSmart|CNBC-e)",
     re.I,
 )
 # Yayıncıya ait olmayan yeniden yayın / aktarma sunucuları
 ARACI_SUNUCU = re.compile(
     r"(siteyaptim\.live|onrender\.com|raw\.githubusercontent\.com|smartplaytv\.in|"
-    r"digitalbox\.xyz|radyotvonline\.net)(:\d+)?$",
+    r"digitalbox\.xyz|radyotvonline\.net|ensonhaber\.com|"
+    r"85\.117\.61\.84)(:\d+)?$",  # son ikisi: haber sitesi aktarması, Gürcistan'dan CNN Türk aktarması
     re.I,
 )
 # Dini yayın yapan kanallar (Religious etiketi olmayanlar) ve TRT'nin yabancı dil kanalları
@@ -35,11 +40,11 @@ LISTE_DISI = {
 HABER_REYTING = ["TRT Haber", "Halk TV SD", "A Haber", "Haberturk TV", "NTV (Turkiye)",
                  "Haber Global", "TGRT Haber"]
 HABER_EK = {"Tele 1", "TVNET (Turkiye)", "Ulke TV"}  # kaynakta News etiketi olmayan haber kanalları
-GENEL_REYTING = ["TRT 1", "Kanal D (Turkiye)", "TV8 (Turkiye)"]
+GENEL_REYTING = ["TRT 1", "Kanal D (Turkiye)", "TV8 (Turkiye)", "Show TV"]
 GENEL_ALFABETIK = {"ATV (Turkiye)", "Beyaz TV", "Kanal 7", "NOW", "Star TV (Turkiye)"}
 MUZIK_EK = {"Power TV (Turkiye)", "PowerTurk TV"}
 YABANCI = {"Almahriah TV", "Elsharq TV", "Mekameleen TV", "Persiana Turkiye", "Qaf TV",
-           "RTG int.", "Zarok TV"}
+           "RTG int.", "TRT World", "Zarok TV"}
 
 
 def ayristir(metin):
@@ -105,8 +110,10 @@ def main():
     istek = urllib.request.Request(KAYNAK, headers={"User-Agent": "tv-kanal-listesi"})
     with urllib.request.urlopen(istek, timeout=60) as yanit:
         metin = yanit.read().decode("utf-8", errors="replace")
-    tum = ayristir(metin)
-    ucretsiz = [k for k in tum if not UCRETLI.match(ad(k))]
+    ek = ayristir(EK.read_text(encoding="utf-8")) if EK.exists() else []
+    ek_adlar = {temiz_ad(k).casefold() for k in ek}
+    tum = [k for k in ayristir(metin) if temiz_ad(k).casefold() not in ek_adlar] + ek
+    ucretsiz =[k for k in tum if not UCRETLI.match(ad(k))]
     resmi = [k for k in ucretsiz if not ARACI_SUNUCU.search(sunucu(k))]
     secili = sorted((k for k in resmi if not istenmeyen(k)), key=sira)
     if len(secili) < EN_AZ_KANAL:
